@@ -1,0 +1,10 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "[python]": {
+    "editor.defaultFormatter": "eeyore.yapf",
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file"
+    },
+    "yapf.importStrategy": "fromEnvironment"
+}
