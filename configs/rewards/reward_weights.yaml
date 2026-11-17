@@ -1,0 +1,7 @@
+# Reward weights for toolpath_rl.envs.rewards.Rewards
+# r = w_cover * cover - w_outside * outside - w_revisit * revisit - w_time * time
+
+w_cover: 1.0     # reward for filling a new free cell
+w_outside: 0.5   # penalty for stepping on an occupied cell (hole / outside)
+w_revisit: 0.2   # penalty for stepping on an already filled cell
+w_time: 0.05     # penalty paid every step, pushes for shorter paths
