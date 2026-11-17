@@ -2,6 +2,7 @@ import csv
 import random
 import logging
 from pathlib import Path
+import numpy as np
 from omegaconf import DictConfig
 
 from .dataset import GridDataset
@@ -9,42 +10,69 @@ from ..geometry import GridBuilder
 
 log = logging.getLogger(__name__)
 
-SPLITS = ("train", "val", "test")
-
 
 class LoadDataset:
     """Reads meta.csv, splits the mesh ids in code and builds one GridDataset
     per split. No split files: the same seed always gives the same split.
 
     Usage:
-        data = LoadDataset(cfg.dataset).load_dataset()
+        loader = LoadDataset(cfg.dataset)
+        data = loader.load_dataset()
         train, val, test = data["train"], data["val"], data["test"]
+        grid = loader.sample("train")   # random shape of the train split
     """
 
-    def __init__(self, cfg: DictConfig):
+    def __init__(self, cfg: DictConfig, sample_seed: int | None = None):
         """
         Args:
             cfg: the dataset config (cfg.dataset, configs/dataset/thingi10k.yaml).
+            sample_seed: seed of the shape sampler. None draws a new one from
+                the OS every run; it is logged so a run can be replayed.
         """
         self.cfg = cfg
+        if sample_seed is None:
+            sample_seed = int(np.random.SeedSequence().entropy)  # type: ignore[arg-type]
+        log.info("Sampling seed: %d", sample_seed)
+        self.sample_seed = sample_seed
+        self.rng = np.random.default_rng(seed=sample_seed)
+        self.data: dict[str, GridDataset] = {}
 
     def load_dataset(self) -> dict[str, GridDataset]:
         """Read, split and wrap the data.
+
+        The split itself is fixed by cfg.split.seed; only the order of the
+        meshes inside each split is shuffled with the sampling rng, so it
+        changes every run (and is replayed with the same sample_seed).
 
         Returns:
             dict[str, GridDataset], {"train": ..., "val": ..., "test": ...}.
         """
         ids = self.read_ids()
         splits = self.split_ids(ids)
+        raw_dir = Path(self.cfg.raw_dir)
         builder = GridBuilder(n_cells=self.cfg.n_cells)
-        return {
-            name: GridDataset(
-                split_ids,
-                Path(self.cfg.raw_dir),
-                builder,
-            )
-            for name, split_ids in splits.items()
-        }
+
+        self.data = {}
+        for name, split_ids in splits.items():
+            shuffled = self.rng.permutation(split_ids).tolist()
+            self.data[name] = GridDataset(shuffled, raw_dir, builder)
+        return self.data
+
+    def sample(self, split: str = "train") -> np.ndarray:
+        """Grid of a random shape of one split, e.g. for env.reset().
+
+        Args:
+            split: "train", "val" or "test".
+
+        Returns:
+            np.ndarray[bool], shape (H, W), 0 = free, 1 = occupied.
+        """
+        if not self.data:
+            raise RuntimeError("call load_dataset() before sample()")
+        dataset = self.data[split]
+        i = int(self.rng.integers(len(dataset)))
+        log.info("Sampled %s mesh %s", split, dataset.ids[i])
+        return dataset[i]
 
     def read_ids(self) -> list[str]:
         """Mesh ids from meta.csv that loaded and are not too large.
@@ -76,13 +104,12 @@ class LoadDataset:
         rest = [i for i in ids if i not in force_test]
         random.Random(s.seed).shuffle(rest)
 
-        n_train = int(s.fractions[0] * len(ids))
-        n_val = int(s.fractions[1] * len(ids))
-        splits = {
-            "train": rest[:n_train],
-            "val": rest[n_train:n_train + n_val],
-            "test": force_test + rest[n_train + n_val:],
-        }
-        for name in SPLITS:
-            log.info("%s: %d meshes", name, len(splits[name]))
-        return splits
+        train_end = int(s.fractions[0] * len(ids))
+        val_end = train_end + int(s.fractions[1] * len(ids))
+        train = rest[:train_end]
+        val = rest[train_end:val_end]
+        test = force_test + rest[val_end:]
+
+        log.info("split: train %d, val %d, test %d meshes",
+                 len(train), len(val), len(test))
+        return {"train": train, "val": val, "test": test}
