@@ -1,5 +1,13 @@
-seed: 0
-device: cuda  # falls back to cpu if unavailable
+defaults:
+  - _self_
+  - dataset: thingi10k
+  - rewards: reward_weights
+  - env: env
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+seed: 123
+device: cuda 
 
 problem:
   n_nodes: 20       # elements to sequence
@@ -19,6 +27,12 @@ hydra:
     dir: outputs/${now:%Y-%m-%d}/${algo.name}_n${problem.n_nodes}_${now:%H-%M-%S}
   job_logging:
     formatters:
-      simple:
+      simple:  # file log: plain, no ANSI codes
         format: "[%(asctime)s][%(levelname)s][%(name)s] %(message)s"
         datefmt: "%H:%M:%S"
+      colorlog:  # console
+        format: "%(cyan)s[%(asctime)s]%(reset)s%(log_color)s[%(levelname)s]%(reset)s%(blue)s[%(name)s]%(reset)s %(message)s"
+        datefmt: "%H:%M:%S"
+    handlers:
+      file:  # plugin default is relative to cwd; keep it in the run dir
+        filename: ${hydra.runtime.output_dir}/${hydra.job.name}.log
