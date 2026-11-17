@@ -1,0 +1,20 @@
+# Thingi10K meshes -> coverage grids, split into train / val / test in code
+# (no split files: the same seed always gives the same split)
+
+name: thingi10k
+
+# Paths are absolute because Hydra runs inside the output folder
+raw_dir: ${oc.env:HOME}/Thingi10K/raw_meshes                  # meshes (outside the repo)
+meta_csv: ${hydra:runtime.cwd}/data/meta.csv                  # from make_meta.py
+
+# Grid (GridBuilder), meshes are sliced at mid height
+n_cells: 64
+
+# Mesh filter, applied to meta.csv before splitting
+max_faces: 200_000
+
+# Split done in code at load time
+split:
+  fractions: [0.8, 0.1, 0.1]       # train, val, test
+  seed: 0                          # keep fixed, or the split changes between runs
+  force_test: ["32770", "1716283"] # meshes used in the Zigzag figures
