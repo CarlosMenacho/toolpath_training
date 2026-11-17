@@ -3,3 +3,4 @@ multirun/
 __pycache__/
 *.pyc
 data/
+backup/

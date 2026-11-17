@@ -6,3 +6,4 @@ trimesh==5.2.0
 matplotlib==3.11.2
 pyslm==0.6.1
 hydra-colorlog==1.2.0
+rerun-sdk==0.43.2
